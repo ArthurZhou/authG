@@ -2,8 +2,9 @@ package main
 
 import (
 	"crypto/md5"
+	"crypto/sha256"
 	"encoding/base64"
-	"fmt"
+	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"log"
@@ -30,11 +31,15 @@ var expireDur = 600
 // var expireDur = 10
 
 var l = log.Default()
+
 var clients []Clients
-var clientsLock bool
 var clientsNew []Clients
 var clientsMap []string
 var clientsMapNew []string
+var clientsLock bool
+
+var accounts map[string]interface{}
+
 var router = mux.NewRouter()
 
 func lookup(id string) (bool, int) {
@@ -42,7 +47,6 @@ func lookup(id string) (bool, int) {
 	hash.Write([]byte(id))
 	id = base64.URLEncoding.EncodeToString(hash.Sum(nil))
 	for i, v := range clientsMap {
-		fmt.Println(id, v)
 		if id == v {
 			return true, i
 		}
@@ -51,8 +55,14 @@ func lookup(id string) (bool, int) {
 }
 
 func auth(usr string, psw string) bool {
-	l.Println(usr, psw)
-	return true
+	user := accounts[usr]
+	hash := sha256.New()
+	hash.Write([]byte(psw))
+	if user == base64.URLEncoding.EncodeToString(hash.Sum(nil)) {
+		return true
+	} else {
+		return false
+	}
 }
 
 func getRoot(w http.ResponseWriter, _ *http.Request) {
@@ -79,9 +89,7 @@ func postAuth(w http.ResponseWriter, r *http.Request) {
 	psw := r.FormValue("psw")
 	params, _ := url.ParseQuery(r.URL.RawQuery)
 	id := params.Get("uuid")
-	fmt.Println("aa: ", id)
 	result, index := lookup(id)
-	fmt.Println(result, index)
 	if result {
 		if auth(usr, psw) == true {
 			clients[index].Login = true
@@ -165,8 +173,16 @@ func expire() {
 	}
 }
 
+func loadAccount() {
+	accountFile, _ := os.ReadFile("accounts.json")
+	_ = json.Unmarshal(accountFile, &accounts)
+}
+
 func main() {
 	l.Println("auth server starting")
+
+	loadAccount()
+
 	router.HandleFunc("/", getRoot).Methods("GET")
 	router.HandleFunc("/auth", getAuth).Methods("GET")
 	router.HandleFunc("/auth", postAuth).Methods("POST")
