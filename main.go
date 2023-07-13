@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/md5"
+	"encoding/base64"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -19,13 +21,29 @@ type Clients struct {
 	Login    bool
 }
 
+var checkDur = 2 * time.Minute
+
+// var checkDur = 10 * time.Second
+
+var expireDur = 600
+
+// var expireDur = 10
+
 var l = log.Default()
 var clients []Clients
+var clientsLock bool
+var clientsNew []Clients
+var clientsMap []string
+var clientsMapNew []string
 var router = mux.NewRouter()
 
 func lookup(id string) (bool, int) {
-	for i, v := range clients {
-		if id == v.Uuid {
+	hash := md5.New()
+	hash.Write([]byte(id))
+	id = base64.URLEncoding.EncodeToString(hash.Sum(nil))
+	for i, v := range clientsMap {
+		fmt.Println(id, v)
+		if id == v {
 			return true, i
 		}
 	}
@@ -84,12 +102,25 @@ func addAuthClient(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		id := uuid.NewString()
 		l.Printf("[%s]: add auth client: %s  redirect to: %s\n", r.RemoteAddr, id, redirect)
-		clients = append(clients, Clients{
-			Uuid:     id,
-			Redirect: redirect,
-			Expire:   time.Now().Unix() + 600,
-			Login:    false,
-		})
+		hash := md5.New()
+		hash.Write([]byte(id))
+		if !clientsLock {
+			clients = append(clients, Clients{
+				Uuid:     id,
+				Redirect: redirect,
+				Expire:   time.Now().Unix() + int64(expireDur),
+				Login:    false,
+			})
+			clientsMap = append(clientsMap, base64.URLEncoding.EncodeToString(hash.Sum(nil)))
+		} else {
+			clientsNew = append(clientsNew, Clients{
+				Uuid:     id,
+				Redirect: redirect,
+				Expire:   time.Now().Unix() + int64(expireDur),
+				Login:    false,
+			})
+			clientsMap = append(clientsMapNew, base64.URLEncoding.EncodeToString(hash.Sum(nil)))
+		}
 		_, _ = w.Write([]byte("{\"status\": true, \"reason\": \"" + id + "\"}"))
 	} else {
 		_, _ = w.Write([]byte("{\"status\": false, \"reason\": \"invalid redirect url\"}"))
@@ -117,13 +148,20 @@ func notFound(w http.ResponseWriter, _ *http.Request) {
 
 func expire() {
 	for {
+		clientsLock = true
 		for index, client := range clients {
 			if client.Expire <= time.Now().Unix() {
 				clients = append(clients[:index], clients[index+1:]...)
+				clientsMap = append(clientsMap[:index], clientsMap[index+1:]...)
 				log.Println("delete an expired client: " + client.Uuid)
 			}
 		}
-		time.Sleep(60 * time.Second)
+		for index := range clientsNew {
+			clients = append(clients, clientsNew[index])
+			clientsMap = append(clientsMap, clientsMapNew[index])
+		}
+		clientsLock = false
+		time.Sleep(checkDur)
 	}
 }
 
