@@ -1,0 +1,10 @@
+{
+  "username": {
+    "hash": "username + password hash base64 value",
+    "uuid": "user uuid"
+  },
+  "username2": {
+    "hash": "username + password hash base64 value",
+    "uuid": "user uuid"
+  }
+}

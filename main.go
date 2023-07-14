@@ -1,10 +1,10 @@
 package main
 
 import (
-	"crypto/md5"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"log"
@@ -16,15 +16,20 @@ import (
 )
 
 type Clients struct {
-	Uuid     string
+	Token    string
 	Redirect string
 	Expire   int64
 	Login    bool
 }
 
+type Accounts struct {
+	Hash string
+	Uuid string
+}
+
 var checkDur = 2 * time.Minute
 
-// var checkDur = 10 * time.Second
+// var checkDur = 1 * time.Second
 
 var expireDur = 600
 
@@ -32,33 +37,21 @@ var expireDur = 600
 
 var l = log.Default()
 
-var clients []Clients
-var clientsNew []Clients
-var clientsMap []string
-var clientsMapNew []string
-var clientsLock bool
+var clients = make(map[string]Clients)
 
-var accounts map[string]interface{}
+var accounts = make(map[string]Accounts)
+
+var loginFile, _ = os.ReadFile("login.html")
+var errorFile, _ = os.ReadFile("error.html")
 
 var router = mux.NewRouter()
-
-func lookup(id string) (bool, int) {
-	hash := md5.New()
-	hash.Write([]byte(id))
-	id = base64.URLEncoding.EncodeToString(hash.Sum(nil))
-	for i, v := range clientsMap {
-		if id == v {
-			return true, i
-		}
-	}
-	return false, -1
-}
 
 func auth(usr string, psw string) bool {
 	user := accounts[usr]
 	hash := sha256.New()
-	hash.Write([]byte(psw))
-	if user == base64.URLEncoding.EncodeToString(hash.Sum(nil)) {
+	hash.Write([]byte(usr + "||" + psw))
+	fmt.Println(base64.URLEncoding.EncodeToString(hash.Sum(nil)))
+	if user.Hash == base64.URLEncoding.EncodeToString(hash.Sum(nil)) {
 		return true
 	} else {
 		return false
@@ -71,15 +64,12 @@ func getRoot(w http.ResponseWriter, _ *http.Request) {
 
 func getAuth(w http.ResponseWriter, r *http.Request) {
 	params, _ := url.ParseQuery(r.URL.RawQuery)
-	id := params.Get("uuid")
-	result, index := lookup(id)
-	if result {
-		client := clients[index]
-		l.Println("client trying to login: " + client.Uuid)
-		file, _ := os.ReadFile("login.html")
-		_, _ = w.Write(file)
+	token := params.Get("token")
+	if entry, ok := clients[token]; ok {
+		l.Println("client trying to login: " + entry.Token)
+		_, _ = w.Write(loginFile)
 	} else {
-		_, _ = w.Write([]byte("This uuid does not exists or has already expired!"))
+		_, _ = w.Write([]byte(strings.ReplaceAll(string(errorFile), "{{text}}", "This token does not exists or has already expired!")))
 	}
 }
 
@@ -88,18 +78,18 @@ func postAuth(w http.ResponseWriter, r *http.Request) {
 	usr := r.FormValue("usr")
 	psw := r.FormValue("psw")
 	params, _ := url.ParseQuery(r.URL.RawQuery)
-	id := params.Get("uuid")
-	result, index := lookup(id)
-	if result {
+	token := params.Get("token")
+	if entry, ok := clients[token]; ok {
 		if auth(usr, psw) == true {
-			clients[index].Login = true
-			l.Println("client successfully logged in: " + id)
-			http.Redirect(w, r, strings.ReplaceAll(clients[index].Redirect, "{{uuid}}", id), http.StatusTemporaryRedirect)
+			entry.Login = true
+			l.Println("client successfully logged in: " + token)
+			http.Redirect(w, r, strings.ReplaceAll(entry.Redirect, "{{token}}", token), http.StatusTemporaryRedirect)
 		} else {
-			_, _ = w.Write([]byte("Failed to authorize!"))
+			_, _ = w.Write([]byte(strings.ReplaceAll(string(errorFile), "{{text}}", "Failed to authorize!")))
 		}
+		clients[token] = entry
 	} else {
-		_, _ = w.Write([]byte("This uuid does not exists or has already expired!"))
+		_, _ = w.Write([]byte(strings.ReplaceAll(string(errorFile), "{{text}}", "This token does not exists or has already expired!")))
 	}
 }
 
@@ -108,28 +98,15 @@ func addAuthClient(w http.ResponseWriter, r *http.Request) {
 	redirect := r.FormValue("redirect")
 	_, err := url.ParseRequestURI(redirect)
 	if err == nil {
-		id := uuid.NewString()
-		l.Printf("[%s]: add auth client: %s  redirect to: %s\n", r.RemoteAddr, id, redirect)
-		hash := md5.New()
-		hash.Write([]byte(id))
-		if !clientsLock {
-			clients = append(clients, Clients{
-				Uuid:     id,
-				Redirect: redirect,
-				Expire:   time.Now().Unix() + int64(expireDur),
-				Login:    false,
-			})
-			clientsMap = append(clientsMap, base64.URLEncoding.EncodeToString(hash.Sum(nil)))
-		} else {
-			clientsNew = append(clientsNew, Clients{
-				Uuid:     id,
-				Redirect: redirect,
-				Expire:   time.Now().Unix() + int64(expireDur),
-				Login:    false,
-			})
-			clientsMap = append(clientsMapNew, base64.URLEncoding.EncodeToString(hash.Sum(nil)))
+		token := uuid.NewString()
+		l.Printf("[%s]: add auth client: %s  redirect to: %s\n", r.RemoteAddr, token, redirect)
+		clients[token] = Clients{
+			Token:    token,
+			Redirect: redirect,
+			Expire:   time.Now().Unix() + int64(expireDur),
+			Login:    false,
 		}
-		_, _ = w.Write([]byte("{\"status\": true, \"reason\": \"" + id + "\"}"))
+		_, _ = w.Write([]byte("{\"status\": true, \"reason\": \"" + token + "\"}"))
 	} else {
 		_, _ = w.Write([]byte("{\"status\": false, \"reason\": \"invalid redirect url\"}"))
 	}
@@ -137,38 +114,30 @@ func addAuthClient(w http.ResponseWriter, r *http.Request) {
 
 func queryLoginStatus(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	id := r.FormValue("uuid")
-	result, index := lookup(id)
-	if result {
-		if clients[index].Login {
+	token := r.FormValue("token")
+	if entry, ok := clients[token]; ok {
+		if entry.Login {
 			_, _ = w.Write([]byte("{\"status\": true, \"reason\": \"user logged in\"}"))
 		} else {
 			_, _ = w.Write([]byte("{\"status\": false, \"reason\": \"user not logged in\"}"))
 		}
 	} else {
-		_, _ = w.Write([]byte("{\"status\": false, \"reason\": \"uuid does not exists or has already expired\"}"))
+		_, _ = w.Write([]byte("{\"status\": false, \"reason\": \"token does not exists or has already expired\"}"))
 	}
 }
 
 func notFound(w http.ResponseWriter, _ *http.Request) {
-	_, _ = w.Write([]byte("NOT FOUND"))
+	_, _ = w.Write([]byte(strings.ReplaceAll(string(errorFile), "{{text}}", "Page not found!")))
 }
 
 func expire() {
 	for {
-		clientsLock = true
-		for index, client := range clients {
+		for _, client := range clients {
 			if client.Expire <= time.Now().Unix() {
-				clients = append(clients[:index], clients[index+1:]...)
-				clientsMap = append(clientsMap[:index], clientsMap[index+1:]...)
-				log.Println("delete an expired client: " + client.Uuid)
+				delete(clients, client.Token)
+				log.Println("delete an expired client: " + client.Token)
 			}
 		}
-		for index := range clientsNew {
-			clients = append(clients, clientsNew[index])
-			clientsMap = append(clientsMap, clientsMapNew[index])
-		}
-		clientsLock = false
 		time.Sleep(checkDur)
 	}
 }

@@ -59,7 +59,7 @@ func addAuth(redirect string) (bool, string) {
 
 func queryAuth(id string) (bool, string) {
 	formData := url.Values{
-		"uuid": {id},
+		"token": {id},
 	}
 
 	client := &http.Client{}
@@ -95,10 +95,9 @@ func queryAuth(id string) (bool, string) {
 }
 
 func getRoot(w http.ResponseWriter, r *http.Request) {
-	status, result := addAuth("http://localhost:8080/index?uuid={{uuid}}")
-	log.Println(status)
+	status, result := addAuth("http://localhost:8080/index?token={{token}}")
 	if status {
-		http.Redirect(w, r, "http://localhost:3333/auth?uuid="+result, http.StatusTemporaryRedirect)
+		http.Redirect(w, r, "http://localhost:3333/auth?token="+result, http.StatusTemporaryRedirect)
 	} else {
 		_, _ = w.Write([]byte(result))
 	}
@@ -106,7 +105,7 @@ func getRoot(w http.ResponseWriter, r *http.Request) {
 
 func getIndex(w http.ResponseWriter, r *http.Request) {
 	params, _ := url.ParseQuery(r.URL.RawQuery)
-	status, result := queryAuth(params.Get("uuid"))
+	status, result := queryAuth(params.Get("token"))
 	if status {
 		_, _ = w.Write([]byte("success"))
 	} else {
