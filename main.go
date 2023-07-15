@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"log"
@@ -23,8 +22,8 @@ type Clients struct {
 }
 
 type Accounts struct {
-	Hash string
-	Uuid string
+	Hash string `json:"hash"`
+	Uuid string `json:"uuid"`
 }
 
 var checkDur = 2 * time.Minute
@@ -51,7 +50,6 @@ func auth(usr string, psw string) bool {
 	user := accounts[usr]
 	hash := sha256.New()
 	hash.Write([]byte(usr + "||" + psw))
-	fmt.Println(base64.URLEncoding.EncodeToString(hash.Sum(nil)))
 	if user.Hash == base64.URLEncoding.EncodeToString(hash.Sum(nil)) {
 		return true
 	} else {
