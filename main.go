@@ -41,6 +41,7 @@ var clients = make(map[string]Clients)
 
 var accounts = make(map[string]Accounts)
 
+var indexFile, _ = os.ReadFile("index.html")
 var loginFile, _ = os.ReadFile("login.html")
 var errorFile, _ = os.ReadFile("error.html")
 
@@ -59,7 +60,7 @@ func auth(usr string, psw string) bool {
 }
 
 func getRoot(w http.ResponseWriter, _ *http.Request) {
-	_, _ = w.Write([]byte("auth server"))
+	_, _ = w.Write(indexFile)
 }
 
 func getAuth(w http.ResponseWriter, r *http.Request) {
