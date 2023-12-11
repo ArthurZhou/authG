@@ -115,8 +115,8 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	router.HandleFunc("/", getRoot).Methods("GET")
-	router.HandleFunc("/index", getIndex)
+	router.HandleFunc("/index", getIndex).Methods("GET")
 
-	log.Println("sample server started")
+	log.Println("sample service started")
 	_ = http.ListenAndServe(":8080", router)
 }
