@@ -19,5 +19,5 @@
 
 # Go workspace file
 go.work
-/accounts.json
 .idea/
+/db/accounts.sqlite

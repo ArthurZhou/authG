@@ -1,5 +1,7 @@
 package main
 
+// Sample service hooked with authG
+
 import (
 	"encoding/json"
 	"github.com/gorilla/mux"
@@ -95,7 +97,7 @@ func queryAuth(id string) (bool, string) {
 }
 
 func getRoot(w http.ResponseWriter, r *http.Request) {
-	status, result := addAuth("http://localhost:8080/index?token={{token}}")
+	status, result := addAuth("http://localhost/index?token={{token}}")
 	if status {
 		http.Redirect(w, r, "http://localhost:3333/auth?token="+result, http.StatusTemporaryRedirect)
 	} else {
@@ -118,5 +120,8 @@ func main() {
 	router.HandleFunc("/index", getIndex).Methods("GET")
 
 	log.Println("sample service started")
-	_ = http.ListenAndServe(":8080", router)
+	err := http.ListenAndServe(":80", router)
+	if err != nil {
+		log.Fatalln(err)
+	}
 }

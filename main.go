@@ -1,20 +1,17 @@
 package main
 
 import (
+	"authG/db"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/securecookie"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -25,11 +22,6 @@ type Clients struct {
 	Login    bool
 }
 
-type Accounts struct {
-	Hash string `json:"hash"`
-	Uuid string `json:"uuid"`
-}
-
 var checkDur = 2 * time.Minute
 
 // var checkDur = 1 * time.Second
@@ -38,17 +30,12 @@ var expireDur = 600
 
 // var expireDur = 10
 
-var saveDur = 5 * time.Minute
-
 var l = log.Default()
 var cookieHandler = securecookie.New( // generate cookie key
 	securecookie.GenerateRandomKey(64),
 	securecookie.GenerateRandomKey(32))
 
 var clients = make(map[string]Clients)
-
-var accounts = make(map[string]Accounts)
-var accountsLock = true
 
 var indexFile, _ = os.ReadFile("templates/index.html")
 var loginFile, _ = os.ReadFile("templates/login.html")
@@ -59,10 +46,10 @@ var delFile, _ = os.ReadFile("templates/delete.html")
 var router = mux.NewRouter()
 
 func auth(usr string, psw string) bool {
-	user := accounts[usr]
+	stat, user := db.Query(usr)
 	hash := sha256.New()
 	hash.Write([]byte(usr + "||" + psw))
-	if user.Hash == base64.URLEncoding.EncodeToString(hash.Sum(nil)) {
+	if stat && user.Hash == base64.URLEncoding.EncodeToString(hash.Sum(nil)) {
 		return true
 	} else {
 		return false
@@ -82,8 +69,7 @@ func getAuth(w http.ResponseWriter, r *http.Request) {
 			cookieValue := make(map[string]string)                                                   // get encoded cookie value
 			if err = cookieHandler.Decode("authG_session", cookie.Value, &cookieValue); err == nil { // decode cookie
 				userName := cookieValue["name"] // get username
-				fmt.Println(userName)
-				if _, ok := accounts[userName]; ok {
+				if ok, _ := db.Query(userName); ok {
 					entry.Login = true
 					l.Println("client successfully logged in: " + token)
 					if mode == "api" {
@@ -97,7 +83,8 @@ func getAuth(w http.ResponseWriter, r *http.Request) {
 					_, _ = w.Write(loginFile)
 				}
 			} else {
-				_, _ = w.Write([]byte(strings.ReplaceAll(string(errorFile), "{{text}}", "Cookie invalid!")))
+				clearSession(w)
+				_, _ = w.Write([]byte(strings.ReplaceAll(string(errorFile), "{{text}}", "<meta http-equiv=\"refresh\" content=\"0\" />")))
 			}
 		} else {
 			l.Println("client trying to login: " + entry.Token)
@@ -273,20 +260,19 @@ func expire() {
 	}
 }
 
-func loadAccount() {
-	accountFile, _ := os.ReadFile("accounts.json")
-	_ = json.Unmarshal(accountFile, &accounts)
-	accountsLock = false
-}
-
 func addAccount(usr string, psw string) (bool, string) {
 	hash := sha256.New()
 	hash.Write([]byte(usr + "||" + psw))
-	_, ok := accounts[usr]
+	ok, _ := db.Query(usr)
 	if !ok {
-		accounts[usr] = Accounts{Hash: base64.URLEncoding.EncodeToString(hash.Sum(nil)), Uuid: uuid.NewString()}
-		l.Printf("Add an account: %s\n", usr)
-		return true, "ok"
+		stat, details := db.Add(usr, base64.URLEncoding.EncodeToString(hash.Sum(nil)), uuid.NewString())
+		if stat {
+			l.Printf("Add an account: %s\n", usr)
+			return true, "ok"
+		} else {
+			l.Printf("Error while adding an account: %s  details: %s\n", usr, details)
+			return false, "Internal error. Please try again later or contact site admin"
+		}
 	} else {
 		l.Printf("Account %s exists\n", usr)
 		return false, "Account exists"
@@ -295,46 +281,25 @@ func addAccount(usr string, psw string) (bool, string) {
 
 func delAccount(usr string, psw string) (bool, string) {
 	if auth(usr, psw) == true {
-		delete(accounts, usr)
-		return true, "ok"
-	} else {
-		return false, "Failed to authorize!"
-	}
-}
-
-func flushAccount() {
-	file, _ := json.MarshalIndent(accounts, "", " ")
-	_ = ioutil.WriteFile("accounts.json", file, 0644)
-}
-
-func saveAccount() {
-	defer flushAccount()
-	c := make(chan os.Signal)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-c
-		flushAccount()
-		os.Exit(0)
-	}()
-	for {
-		if !accountsLock {
-			flushAccount()
+		stat, details := db.Del(usr)
+		if stat {
+			l.Printf("Delete an account: %s\n", usr)
+			return true, "ok"
 		} else {
-			for {
-				if !accountsLock {
-					flushAccount()
-					break
-				}
-			}
+			l.Printf("Error while deleting an account: %s  details: %s\n", usr, details)
+			return false, "Internal error. Please try again later or contact site admin"
 		}
-		time.Sleep(saveDur)
+	} else {
+		l.Printf("Error while deleting an account: %s  details: Unauthorized user\n", usr)
+		return false, "Failed to authorize!"
 	}
 }
 
 func main() {
 	l.Println("auth service starting")
 
-	loadAccount()
+	db.Init()
+	defer db.Close()
 
 	router.HandleFunc("/", getRoot).Methods("GET")
 	router.HandleFunc("/auth", getAuth).Methods("GET")
@@ -350,7 +315,6 @@ func main() {
 	router.NotFoundHandler = http.HandlerFunc(notFound)
 
 	go expire()
-	go saveAccount()
 
 	l.Println("auth service started")
 	err := http.ListenAndServe(":3333", router)
