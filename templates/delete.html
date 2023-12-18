@@ -3,13 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Delete account</title>
-    <style>
-        html {
-            background: black;
-            color: white;
-            font-family: system-ui;
-        }
-    </style>
+    <link href="static/index.css" rel="stylesheet">
 </head>
 <body>
 <div style="text-align: center;">
@@ -17,14 +11,12 @@
     <p>You won`t be able to undo this action. ALL services associated with this account might be UNAVAILABLE</p>
     <br>
     <form method="post">
-        <label>Username : </label>
         <label>
-            <input name="usr" placeholder="Enter Username" required type="text"/>
+            <input class="textbox" name="usr" placeholder="Username" required type="text"/>
         </label>
         <br>
-        <label>Password : </label>
         <label>
-            <input name="psw" placeholder="Enter Password" required type="password"/>
+            <input class="textbox" name="psw" placeholder="Password" required type="password"/>
         </label>
         <br>
         <button type="submit">Confirm</button>

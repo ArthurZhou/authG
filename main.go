@@ -60,7 +60,7 @@ func getRoot(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write(indexFile)
 }
 
-func getAuth(w http.ResponseWriter, r *http.Request) {
+func getlogin(w http.ResponseWriter, r *http.Request) {
 	params, _ := url.ParseQuery(r.URL.RawQuery)
 	token := params.Get("token")
 	mode := params.Get("mode")
@@ -96,7 +96,7 @@ func getAuth(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func postAuth(w http.ResponseWriter, r *http.Request) {
+func postlogin(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	usr := r.FormValue("usr")
 	psw := r.FormValue("psw")
@@ -302,8 +302,8 @@ func main() {
 	defer db.Close()
 
 	router.HandleFunc("/", getRoot).Methods("GET")
-	router.HandleFunc("/auth", getAuth).Methods("GET")
-	router.HandleFunc("/auth", postAuth).Methods("POST")
+	router.HandleFunc("/login", getlogin).Methods("GET")
+	router.HandleFunc("/login", postlogin).Methods("POST")
 	router.HandleFunc("/logout", getLogout).Methods("GET")
 	router.HandleFunc("/register", getReg).Methods("GET")
 	router.HandleFunc("/register", postReg).Methods("POST")
@@ -311,6 +311,9 @@ func main() {
 	router.HandleFunc("/delete", postDel).Methods("POST")
 	router.HandleFunc("/add_auth", addAuthClient).Methods("POST")
 	router.HandleFunc("/query_auth", queryLoginStatus).Methods("POST")
+
+	fs := http.FileServer(http.Dir("templates/static"))
+	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
 
 	router.NotFoundHandler = http.HandlerFunc(notFound)
 

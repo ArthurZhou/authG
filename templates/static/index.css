@@ -1,0 +1,85 @@
+html {
+    background: black;
+    color: white;
+    font-family: system-ui;
+}
+
+.textbox {
+    color: #c3c3c3;
+    font-family: Courier, serif;
+    background: #101010;
+    border-top-width: 0;
+    border-bottom-width: 2px;
+    border-left-width: 0;
+    border-right-width: 0;
+    height: 30px;
+    width: 500px;
+    font-size: 15px;
+    text-align: center;
+    transition: ease .3s;
+}
+
+.textbox:focus {
+    background: #3a3a3a;
+    text-decoration: none;
+    box-shadow: none;
+    outline: none;
+}
+
+.checkbox {
+    color: #c3c3c3;
+    background: #101010;
+    height: 30px;
+    width: 500px;
+    font-size: 15px;
+    text-align: center;
+    transition: ease .3s;
+}
+
+button {
+    color: #c3c3c3;
+    background: #101010;
+    border-top-width: 0;
+    border-bottom-width: 2px;
+    border-left-width: 0;
+    border-right-width: 0;
+    height: 30px;
+    width: 500px;
+    font-size: 15px;
+    text-align: center;
+    transition: ease .3s;
+}
+
+button:hover {
+    color: #c3c3c3;
+    background: #3a3a3a;
+    border-top-width: 0;
+    border-bottom-width: 2px;
+    border-left-width: 0;
+    border-right-width: 0;
+    height: 30px;
+    width: 500px;
+    font-size: 15px;
+    text-align: center;
+}
+
+a {
+    text-decoration: None;
+    color: #58748d;
+    font-family: sans-serif;
+    letter-spacing: 1px;
+}
+
+a:link, a:visited {
+    color: #58748d;
+}
+
+a:hover {
+    color: #539899;
+    text-decoration: none;
+}
+
+a:active {
+    color: #c3c3c3;
+    background: #58748d;
+}

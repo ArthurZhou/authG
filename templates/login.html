@@ -3,33 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <title>Login</title>
-    <style>
-        html {
-            background: black;
-            color: white;
-            font-family: system-ui;
-        }
-    </style>
+    <link href="static/index.css" rel="stylesheet">
 </head>
 <body>
 <div style="text-align: center;">
     <h1>Login to continue</h1>
     <br>
     <form method="post">
-        <label>Username : </label>
         <label>
-            <input type="text" placeholder="Enter Username" name="usr" required />
-        </label>
-        <br>
-        <label>Password : </label>
-        <label>
-            <input type="password" placeholder="Enter Password" name="psw" required />
+            <input class="textbox" name="usr" placeholder="Username" required type="text"/>
         </label>
         <br>
         <label>
+            <input class="textbox" name="psw" placeholder="Password" required type="password"/>
+        </label>
+        <br>
+        <label class="checkbox">
             <input name="remember" type="checkbox" value="true">Remember me
         </label>
-        <br>
+        <br><br>
         <button type="submit">Login</button>
     </form>
     <br>

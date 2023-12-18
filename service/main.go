@@ -99,7 +99,7 @@ func queryAuth(id string) (bool, string) {
 func getRoot(w http.ResponseWriter, r *http.Request) {
 	status, result := addAuth("http://localhost/index?token={{token}}")
 	if status {
-		http.Redirect(w, r, "http://localhost:3333/auth?token="+result, http.StatusTemporaryRedirect)
+		http.Redirect(w, r, "http://localhost:3333/login?token="+result, http.StatusTemporaryRedirect)
 	} else {
 		_, _ = w.Write([]byte(result))
 	}
